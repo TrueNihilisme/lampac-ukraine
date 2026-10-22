@@ -60,6 +60,9 @@ namespace LME.Common.Update
 
         public Task ConnectAsync(string host, CancellationToken cancellationToken = default)
         {
+            // Update check is not used in this fork.
+            return Task.CompletedTask;
+#pragma warning disable CS0162
             if (!ShouldAttempt())
                 return Task.CompletedTask;
 
@@ -145,6 +148,8 @@ namespace LME.Common.Update
 
         public bool IsDisconnected()
         {
+            return false;
+#pragma warning disable CS0162
             return _disconnectTime is not null
                 && DateTime.UtcNow >= _disconnectTime;
         }
