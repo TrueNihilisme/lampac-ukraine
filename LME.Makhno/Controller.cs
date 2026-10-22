@@ -26,20 +26,24 @@ namespace LME.Makhno
         [HttpGet]
         public async Task<ActionResult> Index(long id, string imdb_id, long kinopoisk_id, string title, string original_title, string original_language, int year, string source, int serial, string account_email, string t, int s = -1, int season = -1, bool rjson = false, bool checksearch = false)
         {
-            if (checksearch)
-            {
-                if (!StreamHelper.IsCheckOnlineSearchEnabled())
-                    return OnError();
-
-                return Content("data-json=", "text/plain; charset=utf-8");
-            }
-
             await UpdateService.ConnectAsync(host);
 
             var init = loadKit(ModInit.Makhno);
             if (!init.enable)
                 return OnError();
             Initialization(init);
+
+            if (checksearch)
+            {
+                if (!StreamHelper.IsCheckOnlineSearchEnabled())
+                    return OnError();
+
+                var found = await ResolvePlaySource(imdb_id, serial, new MakhnoInvoke(init, hybridCache, OnLog, proxyManager, httpHydra));
+                if (found == null || string.IsNullOrEmpty(found.PlayUrl))
+                    return OnError();
+
+                return Content("data-json=", "text/plain; charset=utf-8");
+            }
 
             OnLog($"lme_makhno: {title} (serial={serial}, s={s}, season={season}, t={t})");
 
