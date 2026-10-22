@@ -21,7 +21,7 @@ namespace LME.Unimay.Models
         public string Title { get; set; }
         
         [JsonPropertyName("year")]
-        public string Year { get; set; }
+        public int? Year { get; set; }
         
         [JsonPropertyName("type")]
         public string Type { get; set; } // "Фільм" або "Телесеріал"

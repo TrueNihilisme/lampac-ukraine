@@ -108,7 +108,7 @@ namespace LME.Unimay
 
                 string itemTitle = item.Names?.Ukr ?? item.Names?.Eng ?? item.Title;
                 string releaseUrl = $"{host}/lite/lme_unimay?code={item.Code}&title={System.Web.HttpUtility.UrlEncode(itemTitle)}&original_title={System.Web.HttpUtility.UrlEncode(original_title ?? "")}&serial={serial}";
-                results.Add((itemTitle, item.Year, item.Type, releaseUrl));
+                results.Add((itemTitle, item.Year?.ToString(), item.Type, releaseUrl));
             }
 
             return results;
