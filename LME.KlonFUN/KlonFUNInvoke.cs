@@ -498,6 +498,12 @@ namespace LME.KlonFUN
                 requestUrl = ApnHelper.WrapUrl(_init, playerUrl);
 
             var headers = DefaultHeaders();
+            if (ApnHelper.IsAshdiUrl(playerUrl))
+                headers = new List<HeadersModel>
+                {
+                    new HeadersModel("User-Agent", "Mozilla/5.0"),
+                    new HeadersModel("Referer", "https://klon.fun/")
+                };
             return await HttpHelper.GetAsync(_httpHydra, _init, requestUrl, headers, _proxyManager);
         }
 
