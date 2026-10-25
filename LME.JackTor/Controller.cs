@@ -237,17 +237,14 @@ namespace LME.JackTor.Controllers
                 var episodeTpl = new EpisodeTpl();
                 int appended = 0;
 
-                foreach (var file in fileStats.OrderBy(i => i.Id))
+                foreach (var file in NumberFiles(fileStats.Where(i => IsVideoFile(i.Path)), s))
                 {
-                    if (!IsVideoFile(file.Path))
-                        continue;
-
                     episodeTpl.Append(
-                        Path.GetFileName(file.Path),
+                        Path.GetFileName(file.Stat.Path),
                         title ?? original_title,
-                        s.ToString(),
-                        file.Id.ToString(),
-                        accsArgs($"{host}/lite/lme_jacktor/s{rid}?tsid={file.Id}"));
+                        file.Season.ToString(),
+                        file.Episode.ToString(),
+                        accsArgs($"{host}/lite/lme_jacktor/s{rid}?tsid={file.Stat.Id}"));
 
                     appended++;
                 }
@@ -456,6 +453,80 @@ namespace LME.JackTor.Controllers
         {
             return Regex.Match(response ?? string.Empty, "\"hash\":\"([^\"]+)\"").Groups[1].Value;
         }
+
+        #region номери серій з назв файлів
+        // Раніше серією ставав порядковий номер файлу в торенті (file.Id). У роздачі «Бліч – 110 … 308»
+        // файл 110 ставав серією 1, і online.js підставляв до нього назву й кадр серії 1 з TMDB.
+        // Тепер номер (і сезон, якщо він є) береться з назви файлу, порядковий номер лишається запасним.
+        static readonly (Regex rx, bool season)[] EpisodePatterns =
+        {
+            (new Regex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]*e(\d{1,4})(?!\d)", RegexOptions.IgnoreCase), true),       // S01E05
+            (new Regex(@"(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![0-9p])", RegexOptions.IgnoreCase), true),             // 1x05, не 1440x1080
+            (new Regex(@"(?<![a-z])(?:ep?|episode|серія|серия|эпизод)[ ._-]*(\d{1,4})(?!\d)", RegexOptions.IgnoreCase), false),
+            (new Regex(@"(?:^|\s)[-–—]\s*(\d{1,4})(?:v\d)?(?=[\s\[\(._-]|$)"), false),                            // «Назва - 05 [1080p]»
+            (new Regex(@"\[(\d{1,4})(?:v\d)?\]"), false),                                                         // [05]
+            (new Regex(@"^(\d{1,4})(?:v\d)?(?=[\s._\-\])]|$)"), false),                                           // «05. Назва»
+            (new Regex(@"[\s._](\d{1,4})(?:v\d)?(?=\s*[\[\(]|\s*$)"), false),                                     // «Bleach 001», «Назва 01 [BD]»
+        };
+
+        sealed class NumberedFile
+        {
+            public FileStat Stat;
+            public int Season;      // -1 — у назві сезону нема
+            public int Episode;     // 0 — у назві номера нема
+        }
+
+        static (int season, int episode) ParseEpisode(string fileName)
+        {
+            string name = Regex.Replace(fileName ?? string.Empty, @"\.[a-z0-9]{2,4}$", string.Empty, RegexOptions.IgnoreCase);
+            foreach (var (rx, hasSeason) in EpisodePatterns)
+            {
+                foreach (Match m in rx.Matches(name))
+                {
+                    int episode = int.Parse(m.Groups[hasSeason ? 2 : 1].Value);
+                    if (!hasSeason && (episode == 0 || (episode >= 1900 && episode <= 2099)))
+                        continue;   // рік, а не серія
+
+                    return (hasSeason ? int.Parse(m.Groups[1].Value) : -1, episode);
+                }
+            }
+            return (-1, 0);
+        }
+
+        static List<NumberedFile> NumberFiles(IEnumerable<FileStat> files, int s)
+        {
+            var all = files.OrderBy(i => i.Id).Select(i =>
+            {
+                var p = ParseEpisode(Path.GetFileName(i.Path));
+                return new NumberedFile { Stat = i, Season = p.season, Episode = p.episode };
+            }).ToList();
+
+            // пак із кількома сезонами: лише запитаний
+            if (all.Any(i => i.Season == s))
+                all = all.Where(i => i.Season == -1 || i.Season == s).ToList();
+
+            foreach (var i in all)
+                if (i.Season == -1) i.Season = s;
+
+            var numbered = all.Where(i => i.Episode > 0).ToList();
+            bool unique = numbered.Select(i => (i.Season, i.Episode)).Distinct().Count() == numbered.Count;
+
+            if (numbered.Count > 0 && numbered.Count * 2 >= all.Count && unique)
+            {
+                // файли без номера (NCOP, бонуси) — у кінці, з номером 0: online.js не чіпляє до них серію TMDB
+                return numbered.OrderBy(i => i.Season).ThenBy(i => i.Episode)
+                    .Concat(all.Where(i => i.Episode == 0))
+                    .ToList();
+            }
+
+            foreach (var i in all)
+            {
+                i.Season = s;
+                i.Episode = i.Stat.Id;
+            }
+            return all;
+        }
+        #endregion
 
         private static bool IsVideoFile(string path)
         {
