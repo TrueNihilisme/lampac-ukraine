@@ -462,7 +462,7 @@ namespace LME.JackTor.Controllers
         {
             (new Regex(@"(?<![a-z0-9])s(\d{1,2})[ ._-]*e(\d{1,4})(?!\d)", RegexOptions.IgnoreCase), true),       // S01E05
             (new Regex(@"(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![0-9p])", RegexOptions.IgnoreCase), true),             // 1x05, не 1440x1080
-            (new Regex(@"(?<![a-z])(?:ep?|episode|серія|серия|эпизод)[ ._-]*(\d{1,4})(?!\d)", RegexOptions.IgnoreCase), false),
+            (new Regex(@"(?<![a-z0-9])(?:ep?|episode|серія|серия|эпизод)[ ._-]*(\d{1,4})(?!\d)", RegexOptions.IgnoreCase), false),
             (new Regex(@"(?:^|\s)[-–—]\s*(\d{1,4})(?:v\d)?(?=[\s\[\(._-]|$)"), false),                            // «Назва - 05 [1080p]»
             (new Regex(@"\[(\d{1,4})(?:v\d)?\]"), false),                                                         // [05]
             (new Regex(@"^(\d{1,4})(?:v\d)?(?=[\s._\-\])]|$)"), false),                                           // «05. Назва»
@@ -476,9 +476,13 @@ namespace LME.JackTor.Controllers
             public int Episode;     // 0 — у назві номера нема
         }
 
+        // CRC32 у дужках («[7E2B1A90]» у релізах SubsPlease, Erai-raws тощо): «E2» з нього ставало серією 2
+        static readonly Regex Crc32 = new Regex(@"[\[\(][0-9a-f]{8}[\]\)]", RegexOptions.IgnoreCase);
+
         static (int season, int episode) ParseEpisode(string fileName)
         {
             string name = Regex.Replace(fileName ?? string.Empty, @"\.[a-z0-9]{2,4}$", string.Empty, RegexOptions.IgnoreCase);
+            name = Crc32.Replace(name, " ");
             foreach (var (rx, hasSeason) in EpisodePatterns)
             {
                 foreach (Match m in rx.Matches(name))
